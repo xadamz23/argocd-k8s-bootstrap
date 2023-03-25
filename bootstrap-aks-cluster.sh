@@ -114,15 +114,15 @@ argocd_fqdn="${aks_cluster}-argocd.cbreesi.com"
 #--------------------------------------------------------------------------------------------------
 set-environment
 
-# install-argocd      # THIS FUNCTION HAS A LINE THAT WILL NEED TO BE CHANGED
+install-argocd      # THIS FUNCTION HAS A LINE THAT WILL NEED TO BE CHANGED
 
-# change-argocd-admin-password
+change-argocd-admin-password
 
-# connect-bootstrap-git-repo
+connect-bootstrap-git-repo
 
-# create-argocd-aks-infrastructure-project
+create-argocd-aks-infrastructure-project
 
-# create-infrastructure-root-app
+create-infrastructure-root-app
 
 # We can't have the kps app in source control because alertmananger does not
 # support environment variables for secrets.
@@ -134,16 +134,16 @@ add-kube-prometheus-stack-app
 
 # sync-external-secrets-chart
 
-# create-external-secrets-css
+create-external-secrets-css
 
-# create-external-secrets-common
+create-external-secrets-common
 
-# create-external-secrets-aks-infrastructure
+create-external-secrets-aks-infrastructure
 
 # sync-charts
 
 # create-ingress-resources
 
-# output
+output
 
 cleanup
