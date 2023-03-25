@@ -1,0 +1,725 @@
+cleanup() {
+    rm -f $argocd_helm_values_file 2>/dev/null
+    rm -f $temp_kube_config_file 2>/dev/null
+    argocd context port-forward --delete >/dev/null 2>&1
+}
+
+
+set-environment() {
+    # Use a temporary kube config file
+    export KUBECONFIG=$temp_kube_config_file
+
+    # Switch to the correct azure sub
+    az account set --subscription $azure_sub
+
+    # Get the aks credentials
+    az aks get-credentials -g $aks_cluster_resource_group -n $aks_cluster
+    if [ $? -ne 0 ]; then
+        echo "Unable to get aks credentials."
+        cleanup
+        exit 1
+    fi
+}
+
+
+install-argocd() {
+    helm repo add argo https://argoproj.github.io/argo-helm >/dev/null
+
+    cat <<EOF > $argocd_helm_values_file
+        # Enable HA mode
+        redis-ha:
+          enabled: true
+        controller:
+          replicas: 1
+        server:
+          replicas: 2
+        repoServer:
+          replicas: 2
+        applicationSet:
+          replicaCount: 2
+    
+        # Delete CRDs on chart uninstall
+        crds:
+          keep: false
+    
+        configs:
+          params:
+            # Run server without TLS (Linkerd will encrypt all traffic)
+            server.insecure: true
+    
+        global:
+          # Default node selector for all components
+          nodeSelector: {"agentpool": "highmem"}  # CHANGE THIS TO "default" WHEN DEPLOYING FOR REAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+EOF
+
+    kubectl create namespace $namespace --save-config >/dev/null 2>&1
+    kubectl annotate namespace $namespace linkerd.io/inject=enabled >/dev/null 2>&1
+
+    helm -n $namespace install argocd argo/argo-cd -f $argocd_helm_values_file
+}
+
+
+change-argocd-admin-password() {
+    echo
+    echo "Waiting for the deployment to be \"Ready\"..."
+
+    for deployment in argocd-applicationset-controller argocd-notifications-controller argocd-redis-ha-haproxy argocd-repo-server argocd-server argocd-dex-server; do
+      kubectl -n $namespace wait deployment $deployment --for condition=Available=True --timeout=90s
+    done
+
+    current_password=$(kubectl -n $namespace get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+    new_password=$(pwgen -scny -r \.\$\"\'\`\*\|\;\&\<\>\\=,:{}[]~/ 24 1)
+    argocd login --port-forward --port-forward-namespace argocd --skip-test-tls --plaintext --username admin --password $current_password
+    argocd account update-password --port-forward-namespace argocd --current-password $current_password --new-password $new_password
+    echo
+}
+
+
+connect-bootstrap-git-repo() {
+    cat << EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          annotations:
+            managed-by: argocd.argoproj.io
+          labels:
+            argocd.argoproj.io/secret-type: repository
+          name: repo-argocd-k8s-bootstrap
+          namespace: argocd
+        stringData:
+          name: argocd-k8s-bootstrap
+          type: git
+          # project is optional
+          project: prism-acme
+          url: https://github.com/xadamz23/argocd-k8s-bootstrap
+EOF
+}
+
+
+create-argocd-aks-infrastructure-project() {
+    cat <<EOF | kubectl apply -f -
+        apiVersion: argoproj.io/v1alpha1
+        kind: AppProject
+        metadata:
+          name: aks-infrastructure
+          namespace: $namespace
+        spec:
+          clusterResourceWhitelist:
+          - group: '*'
+            kind: '*'
+          destinations:
+          - name: '*'
+            namespace: '*'
+            server: '*'
+          sourceRepos:
+          - '*'
+EOF
+}
+
+
+add-third-party-helm-repos() {
+    cat <<EOF | kubectl apply -f -
+        # PROMETHEUS-COMMUNITY
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          annotations:
+            managed-by: argocd.argoproj.io
+          labels:
+            argocd.argoproj.io/secret-type: repository
+          name: repo-prometheus-community
+          namespace: $namespace
+        stringData:
+          name: prometheus-community
+          type: helm
+          # project is optional
+          project: aks-infrastructure
+          url: https://prometheus-community.github.io/helm-charts
+---
+        # INGRESS-NGINX
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          annotations:
+            managed-by: argocd.argoproj.io
+          labels:
+            argocd.argoproj.io/secret-type: repository
+          name: repo-ingress-nginx
+          namespace: $namespace
+        stringData:
+          name: ingress-nginx
+          type: helm
+          # project is optional
+          project: aks-infrastructure
+          url: https://kubernetes.github.io/ingress-nginx
+---
+        # BITNAMI
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          annotations:
+            managed-by: argocd.argoproj.io
+          labels:
+            argocd.argoproj.io/secret-type: repository
+          name: repo-bitnami
+          namespace: $namespace
+        stringData:
+          name: bitnami
+          type: helm
+          # project is optional
+          project: aks-infrastructure
+          url: https://charts.bitnami.com/bitnami
+---
+        # EXTERNAL-SECRETS
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          annotations:
+            managed-by: argocd.argoproj.io
+          labels:
+            argocd.argoproj.io/secret-type: repository
+          name: repo-external-secrets
+          namespace: $namespace
+        stringData:
+          name: external-secrets
+          type: helm
+          # project is optional
+          project: aks-infrastructure
+          url: https://charts.external-secrets.io
+---
+        # CLOUDNATIVEPG
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          annotations:
+            managed-by: argocd.argoproj.io
+          labels:
+            argocd.argoproj.io/secret-type: repository
+          name: repo-cloudnative-pg
+          namespace: $namespace
+        stringData:
+          name: CloudNativePG
+          type: helm
+          # project is optional
+          project: aks-infrastructure
+          url: https://cloudnative-pg.github.io/charts
+---
+        # LOKI
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          annotations:
+            managed-by: argocd.argoproj.io
+          labels:
+            argocd.argoproj.io/secret-type: repository
+          name: repo-loki
+          namespace: $namespace
+        stringData:
+          name: loki
+          type: helm
+          # project is optional
+          project: aks-infrastructure
+          url: https://grafana.github.io/helm-charts
+EOF
+}
+
+
+install-third-party-helm-charts() {
+    cat <<EOF | kubectl apply -f -
+        # EXTERNAL SECRETS
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-secrets
+          annotations:
+            linkerd.io/inject: enabled
+---
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: external-secrets
+          namespace: $namespace
+        spec:
+          project: aks-infrastructure
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: external-secrets
+          source:
+            repoURL: https://charts.external-secrets.io
+            chart: external-secrets
+            targetRevision: 0.7.2
+            helm:
+              parameters:
+              - name: installCRDs
+                value: "true"
+          # syncPolicy:
+          #   automated: {}
+---
+        # CLOUDNATIVEPG OPERATOR
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: cnpg-system
+          annotations:
+            linkerd.io/inject: enabled
+---
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: cloudnative-pg-operator
+          namespace: $namespace
+        spec:
+          project: aks-infrastructure
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: cnpg-system
+          source:
+            repoURL: https://cloudnative-pg.github.io/charts
+            chart: cloudnative-pg
+            targetRevision: 0.17.0
+          # syncPolicy:
+          #   automated: {}
+---
+        # INGRESS-NGINX
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: ingress-nginx
+          namespace: $namespace
+        spec:
+          project: aks-infrastructure
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: ingress-nginx
+          source:
+            repoURL: https://kubernetes.github.io/ingress-nginx
+            chart: ingress-nginx
+            targetRevision: 4.5.2
+            helm:
+              values: |-
+                controller:
+                  service:
+                    loadBalancerIP: $ingress_nginx_lb_ip
+                    annotations:
+                      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+                      service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
+                  replicaCount: 2
+                  nodeSelector:
+                    kubernetes.io/os: linux
+                  admissionWebhooks:
+                    patch:
+                      nodeSelector:
+                        kubernetes.io/os: linux
+                defaultBackend:
+                  nodeSelector:
+                    kubernetes.io/os: linux
+                spec:
+                  template:
+                    metadata:
+                      annotations:
+                        linkerd.io/inject: enabled
+          syncPolicy:
+            # automated: {}
+            syncOptions:
+            - CreateNamespace=true
+---
+        # KUBE-PROMETHEUS-STACK
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: monitoring
+          annotations:
+            linkerd.io/inject: enabled
+---
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: kube-prometheus-stack
+          namespace: $namespace
+        spec:
+          destination:
+            namespace: monitoring
+            server: https://kubernetes.default.svc
+          project: aks-infrastructure
+          source:
+            repoURL: https://prometheus-community.github.io/helm-charts
+            chart: kube-prometheus-stack
+            targetRevision: 45.7.1
+            helm:
+              releaseName: kps
+              values: |-
+                grafana:
+                  deploymentStrategy:
+                    type: Recreate
+                  persistence:
+                    enabled: true
+                    type: pvc
+                    storageClassName: default
+                    accessModes:
+                    - ReadWriteOnce
+                    size: $grafana_pvc_size
+                    finalizers:
+                    - kubernetes.io/pvc-protection
+                  defaultDashboardsTimezone: America/Chicago
+                  adminPassword: $grafana_admin_password
+                  envFromSecret: $grafana_config_secret_name
+                prometheus:
+                  prometheusSpec:
+                    serviceMonitorSelectorNilUsesHelmValues: false
+                    ruleSelectorNilUsesHelmValues: false
+                    storageSpec:
+                     volumeClaimTemplate:
+                       spec:
+                         storageClassName: default
+                         accessModes: ["ReadWriteOnce"]
+                         resources:
+                           requests:
+                             storage: $prometheus_pvc_size
+                defaultRules:
+                  additionalRuleLabels:
+                    aks_cluster_name: $aks_cluster
+                alertmanager:
+                  config:
+                    global:
+                      resolve_timeout: 5m
+                      smtp_smarthost: "$mailgun_smtp_server"
+                      smtp_from: "$prometheus_alerts_smtp_username"
+                      smtp_auth_username: "$prometheus_alerts_smtp_username"
+                      smtp_auth_password: "$prometheus_alerts_smtp_password"
+                    # The root route (node).
+                    route:
+                      receiver: "default-receiver-email"
+                      group_wait: 30s
+                      group_interval: 5m
+                      repeat_interval: 12h
+                      group_by: ['alertname']
+                      # Child routes. All alerts that do not match the following child routes
+                      # will remain at the root node and be dispatched to 'default-receiver-email'.
+                      routes:
+                      - receiver: "null"
+                        matchers:
+                          - alertname =~ "Watchdog|KubeControllerManagerDown|KubeSchedulerDown"
+                    # Define the receivers.
+                    receivers:
+                    - name: "null"
+                    - name: "default-receiver-email"
+                      email_configs:
+                      - to: "$prometheus_alerts_smtp_to"
+                        headers:
+                          subject: 'AKS Cluster: $aks_cluster {{ template "email.default.subject" . }}'
+                    # Templates.
+                    templates:
+                    - /etc/alertmanager/config/*.tmpl
+          # ServerSideApply is required for this application because of its size. Without it a client side apply
+          # would be performed and syncing would fail with an error similar to "Too long: must have at most 262144 bytes".
+          # Also, it will probably take two syncs to be in a completely healthy state.
+          syncPolicy:
+            # automated: {}
+            syncOptions:
+            - ServerSideApply=true
+---
+        # Linkerd
+        # I think we should continue using the linkerd cli to install linkerd. Installing via helm requires you to first
+        # create certificates. We can revisit this later.
+---
+        # LOKI
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: loki
+          namespace: $namespace
+        spec:
+          project: aks-infrastructure
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: monitoring
+          source:
+            repoURL: https://grafana.github.io/helm-charts
+            chart: loki-stack
+            targetRevision: 2.9.9
+            helm:
+              values: |-
+                loki:
+                  config:
+                    compactor:
+                      compaction_interval: 10m
+                      retention_delete_delay: 2h
+                      retention_delete_worker_count: 150
+                      retention_enabled: true
+                    limits_config:
+                      retention_period: 4320h
+                  isDefault: false
+                  persistence:
+                    enabled: true
+                    size: $loki_pvc_size
+          # syncPolicy:
+          #   automated: {}
+EOF
+}
+
+
+sync-external-secrets-chart() {
+    echo
+    echo "Syncing external-secrets. This will take a minute or two..."
+
+    argocd app sync external-secrets --port-forward-namespace $namespace >/dev/null 2>&1
+
+    argocd app wait external-secrets --port-forward-namespace $namespace >/dev/null 2>&1
+
+    # status=null
+    # while [ "$status" != "Synced" ]; do
+    #   sleep 0.3
+    #   status=$(argocd app list --port-forward-namespace argocd -r https://charts.external-secrets.io -o json | jq -r '.[0].status.sync.status')
+    # done
+
+    # status=null
+    # while [ "$status" != "Healthy" ]; do
+    #   sleep 0.3
+    #   status=$(argocd app list --port-forward-namespace argocd -r https://charts.external-secrets.io -o json | jq -r '.[0].status.health.status')
+    # done
+}
+
+
+create-external-secrets-css() {
+    kubectl -n external-secrets create secret generic $common_key_vault_sp_creds_secret --from-literal=ClientID=$common_key_vault_sp_client_id --from-literal=ClientSecret=$common_key_vault_sp_client_secret
+
+    # --------------------------------------------------------------------------------------------------
+    # Create an external-secret CSS that maps to the ESI common (global) key vault
+    # --------------------------------------------------------------------------------------------------
+    cat <<EOF | kubectl apply -f -
+        # Create a ClusterSecretStore
+        apiVersion: external-secrets.io/v1beta1
+        kind: ClusterSecretStore
+        metadata:
+          name: $common_key_vault_name                                     # What you would like to name the ClusterSecretStore
+          ##namespace:  A "ClusterSecretStore" resource is not a namespaced resource.
+        spec:
+          provider:
+            azurekv:
+              tenantId: 0159e9d0-09a0-4edf-96ba-a3deea363c28               # Azure tenant ID
+              vaultUrl: "https://${common_key_vault_name}.vault.azure.net"   # Azure key vault uri
+              authSecretRef:
+                clientId:
+                  namespace: external-secrets                          # Namespace where the sp secret we just created resides
+                  name: $common_key_vault_sp_creds_secret                       # Name of the secret we just created that contains the sp client id and password
+                  key: ClientID
+                clientSecret:
+                  namespace: external-secrets                          # Namespace where the sp secret we just created resides
+                  name: $common_key_vault_sp_creds_secret                       # Name of the secret we just created that contains the sp client id and password
+                  key: ClientSecret
+EOF
+
+    #--------------------------------------------------------------------------------------------------
+    # Create an external-secret CSS that maps to the cluster specific key vault (kv-<aks cluster name>)
+    #--------------------------------------------------------------------------------------------------
+    cat <<EOF | kubectl apply -f -
+        # Create a ClusterSecretStore
+        apiVersion: external-secrets.io/v1beta1
+        kind: ClusterSecretStore
+        metadata:
+          name: $aks_key_vault_name                                     # What you would like to name the ClusterSecretStore
+          ##namespace:  A "ClusterSecretStore" resource is not a namespaced resource.
+        spec:
+          provider:
+            azurekv:
+              tenantId: 0159e9d0-09a0-4edf-96ba-a3deea363c28               # Azure tenant ID
+              vaultUrl: "https://${aks_key_vault_name}.vault.azure.net"   # Azure key vault uri
+              authSecretRef:
+                clientId:
+                  namespace: external-secrets                          # Namespace where the sp secret we just created resides
+                  name: $common_key_vault_sp_creds_secret                       # Name of the secret we just created that contains the sp client id and password
+                  key: ClientID
+                clientSecret:
+                  namespace: external-secrets                          # Namespace where the sp secret we just created resides
+                  name: $common_key_vault_sp_creds_secret                       # Name of the secret we just created that contains the sp client id and password
+                  key: ClientSecret
+EOF
+}
+
+
+#--------------------------------------------------------------------------------------------------
+# Sync secrets from the common key vault
+#--------------------------------------------------------------------------------------------------
+create-external-secrets-common() {
+    #---------------------------------------
+    # CBREESI WILDCARD TLS CERTIFICATE
+    #---------------------------------------
+    for ns in argocd monitoring; do
+        cat <<EOF | kubectl apply -f -
+            apiVersion: external-secrets.io/v1beta1
+            kind: ExternalSecret
+            metadata:
+              name: tls-wildcard-cbreesi-com-pem      # What to name the es (ExternalSecret k8s resource. kubectl -n <namespace> get es tls-wildcard-cbreesi-com)
+              namespace: $ns                          # Namespace where es will be deployed. ExternalSecrets will create the synced k8s secret in this same ns.
+            spec:
+              refreshInterval: 1h                         # How often ExternalSecrets syncs the k8s secret from the Azure key vault secret
+              secretStoreRef:
+                kind: ClusterSecretStore
+                name: $common_key_vault_name                # Name of the ExternalSecrets ClusterSecretStore deployed to the k8s cluster.
+              target:
+                template:
+                  type: kubernetes.io/tls             # We are telling ExternalSecrets to create a secret of type kubernetes.io/tls
+                name: tls-wildcard-cbreesi-com-pem    # k8s secret to create (sync to)
+              dataFrom:
+              - extract:
+                  key: tls-wildcard-cbreesi-com-pem   # Name of Azure kv secret
+                  decodingStrategy: Base64            # We are telling ExternalSecrets that the Azure key vault secret value is in base64 format
+EOF
+    done
+}
+
+
+#--------------------------------------------------------------------------------------------------
+# Sync secrets from the cluster specific key vault (kv-<aks cluster name>)
+#--------------------------------------------------------------------------------------------------
+create-external-secrets-aks-infrastructure() {
+    #---------------------------------------
+    # GRAFANA ENV VARS
+    #---------------------------------------
+    cat <<EOF | kubectl apply -f -
+        apiVersion: external-secrets.io/v1beta1
+        kind: ExternalSecret
+        metadata:
+          name: $grafana_config_secret_name      # What to name the es (ExternalSecret k8s resource. kubectl -n <namespace> get es tls-wildcard-cbreesi-com)
+          namespace: monitoring                  # Namespace where es will be deployed. ExternalSecrets will create the synced k8s secret in this same ns.
+        spec:
+          refreshInterval: 1h                 # How often ExternalSecrets syncs the k8s secret from the Azure key vault secret
+          secretStoreRef:
+            kind: ClusterSecretStore
+            name: $aks_key_vault_name            # Name of the ExternalSecrets ClusterSecretStore deployed to the k8s cluster.
+          target:
+            name: $grafana_config_secret_name    # k8s secret to create (sync to)
+          dataFrom:
+          - extract:
+              key: $grafana_config_secret_name  # Name of Azure kv secret
+EOF
+}
+
+
+sync-charts() {
+    echo
+    echo "Performing initial application sync..."
+    argocd app sync loki cloudnative-pg-operator ingress-nginx --port-forward-namespace $namespace --async >/dev/null 2>&1
+
+    # Ensure the grafana env vars external-secret is synced before syncing the kube-prometheus-stack chart
+    status=null
+    while [ "$status" != "SecretSynced" ]; do
+      sleep 0.3
+      status=$(kubectl -n monitoring get es $grafana_config_secret_name -o jsonpath='{.status.conditions[].reason}')
+    done
+
+    # kube-prometheus-stack requires at least two syncs to become healthy
+    argocd app sync kube-prometheus-stack --port-forward-namespace $namespace --server-side >/dev/null 2>&1
+
+    # status=null
+    # while [ "$status" != "Synced" ]; do
+    #   sleep 2
+    #   status=$(argocd app list --port-forward-namespace argocd -r https://prometheus-community.github.io/helm-charts -o json | jq -r '.[0].status.sync.status')
+    #   if [ "$status" != "Synced" ]; then
+    #     echo "Not synced yet..."
+    #     argocd app sync kube-prometheus-stack --port-forward-namespace $namespace --server-side >/dev/null 2>&1
+    #   fi
+    # done
+
+    # status=null
+    # while [ "$status" != "Healthy" ]; do
+    #   sleep 2
+    #   status=$(argocd app list --port-forward-namespace argocd -r https://prometheus-community.github.io/helm-charts -o json | jq -r '.[0].status.health.status')
+    #   if [ "$status" != "Healthy" ]; then
+    #     echo "Not healthy yet..."
+    #     argocd app sync kube-prometheus-stack --port-forward-namespace $namespace --server-side >/dev/null 2>&1
+    #   fi
+    # done
+
+    status=null
+    while [ "$status" != "Succeeded" ]; do
+      status=$(argocd app list --port-forward-namespace argocd -r https://prometheus-community.github.io/helm-charts -o json | jq -r '.[0].status.operationState.phase')
+      if [ "$status" != "Succeeded" ]; then
+        echo "Still syncing..."
+        sleep 10
+        argocd app sync kube-prometheus-stack --port-forward-namespace $namespace --server-side >/dev/null 2>&1
+      fi
+    done
+
+    echo "Sync is complete"
+    echo
+}
+
+
+create-ingress-resources() {
+    status=null
+    while [ "$status" != "Succeeded" ]; do
+      status=$(argocd app list --port-forward-namespace argocd -r https://kubernetes.github.io/ingress-nginx -o json | jq -r '.[0].status.operationState.phase')
+      if [ "$status" != "Succeeded" ]; then
+        sleep 1
+      fi
+    done
+
+    cat <<EOF | kubectl apply -f -
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: argocd-server-ingress
+          namespace: $namespace
+          ##annotations:
+            ##kubernetes.io/ingress.class: nginx
+            ##nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+            ##nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+        spec:
+          ingressClassName: nginx
+          rules:
+          - host: $argocd_fqdn
+            http:
+              paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: argocd-server
+                    port:
+                      name: http
+          tls:
+          - hosts:
+            - $argocd_fqdn
+            secretName: tls-wildcard-cbreesi-com-pem
+---
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          annotations:
+            nginx.ingress.kubernetes.io/proxy-body-size: 50m
+          name: grafana-ingress
+          namespace: monitoring
+        spec:
+          ingressClassName: nginx
+          rules:
+          - host: $grafana_server_fqdn
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: kps-grafana
+                    port:
+                      number: 80
+                path: /
+                pathType: Prefix
+          tls:
+          - hosts:
+            - $grafana_server_fqdn
+            secretName: tls-wildcard-cbreesi-com-pem
+EOF
+}
+
+
+output() {
+  echo
+  echo "ArgoCD admin password: $new_password"
+  echo  
+}
