@@ -5,19 +5,23 @@
 #   annotations:
 #     linkerd.io/inject: enabled
 # ---
-# apiVersion: argoproj.io/v1alpha1
-# kind: Application
-# metadata:
-#   name: cloudnative-pg-operator
-#   namespace: argocd
-# spec:
-#   project: aks-infrastructure
-#   destination:
-#     server: https://kubernetes.default.svc
-#     namespace: cnpg-system
-#   source:
-#     repoURL: https://cloudnative-pg.github.io/charts
-#     chart: cloudnative-pg
-#     targetRevision: 0.17.0
-#   # syncPolicy:
-#   #   automated: {}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudnative-pg-operator
+  namespace: argocd
+spec:
+  project: aks-infrastructure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  source:
+    repoURL: https://cloudnative-pg.github.io/charts
+    chart: cloudnative-pg
+    targetRevision: 0.17.0
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+  managedNamespaceMetadata:
+    annotations:
+      linkerd.io/inject: enabled
