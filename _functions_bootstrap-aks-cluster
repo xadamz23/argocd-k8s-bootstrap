@@ -142,231 +142,126 @@ EOF
 }
 
 
-add-third-party-helm-repos() {
-    cat <<EOF | kubectl apply -f -
-        # PROMETHEUS-COMMUNITY
-        apiVersion: v1
-        kind: Secret
-        type: Opaque
-        metadata:
-          annotations:
-            managed-by: argocd.argoproj.io
-          labels:
-            argocd.argoproj.io/secret-type: repository
-          name: repo-prometheus-community
-          namespace: $namespace
-        stringData:
-          name: prometheus-community
-          type: helm
-          # project is optional
-          project: aks-infrastructure
-          url: https://prometheus-community.github.io/helm-charts
----
-        # INGRESS-NGINX
-        apiVersion: v1
-        kind: Secret
-        type: Opaque
-        metadata:
-          annotations:
-            managed-by: argocd.argoproj.io
-          labels:
-            argocd.argoproj.io/secret-type: repository
-          name: repo-ingress-nginx
-          namespace: $namespace
-        stringData:
-          name: ingress-nginx
-          type: helm
-          # project is optional
-          project: aks-infrastructure
-          url: https://kubernetes.github.io/ingress-nginx
----
-        # BITNAMI
-        apiVersion: v1
-        kind: Secret
-        type: Opaque
-        metadata:
-          annotations:
-            managed-by: argocd.argoproj.io
-          labels:
-            argocd.argoproj.io/secret-type: repository
-          name: repo-bitnami
-          namespace: $namespace
-        stringData:
-          name: bitnami
-          type: helm
-          # project is optional
-          project: aks-infrastructure
-          url: https://charts.bitnami.com/bitnami
----
-        # EXTERNAL-SECRETS
-        apiVersion: v1
-        kind: Secret
-        type: Opaque
-        metadata:
-          annotations:
-            managed-by: argocd.argoproj.io
-          labels:
-            argocd.argoproj.io/secret-type: repository
-          name: repo-external-secrets
-          namespace: $namespace
-        stringData:
-          name: external-secrets
-          type: helm
-          # project is optional
-          project: aks-infrastructure
-          url: https://charts.external-secrets.io
----
-        # CLOUDNATIVEPG
-        apiVersion: v1
-        kind: Secret
-        type: Opaque
-        metadata:
-          annotations:
-            managed-by: argocd.argoproj.io
-          labels:
-            argocd.argoproj.io/secret-type: repository
-          name: repo-cloudnative-pg
-          namespace: $namespace
-        stringData:
-          name: CloudNativePG
-          type: helm
-          # project is optional
-          project: aks-infrastructure
-          url: https://cloudnative-pg.github.io/charts
----
-        # LOKI
-        apiVersion: v1
-        kind: Secret
-        type: Opaque
-        metadata:
-          annotations:
-            managed-by: argocd.argoproj.io
-          labels:
-            argocd.argoproj.io/secret-type: repository
-          name: repo-loki
-          namespace: $namespace
-        stringData:
-          name: loki
-          type: helm
-          # project is optional
-          project: aks-infrastructure
-          url: https://grafana.github.io/helm-charts
-EOF
-}
+# add-third-party-helm-repos() {
+#     cat <<EOF | kubectl apply -f -
+#         # PROMETHEUS-COMMUNITY
+#         apiVersion: v1
+#         kind: Secret
+#         type: Opaque
+#         metadata:
+#           annotations:
+#             managed-by: argocd.argoproj.io
+#           labels:
+#             argocd.argoproj.io/secret-type: repository
+#           name: repo-prometheus-community
+#           namespace: $namespace
+#         stringData:
+#           name: prometheus-community
+#           type: helm
+#           # project is optional
+#           project: aks-infrastructure
+#           url: https://prometheus-community.github.io/helm-charts
+# ---
+#         # INGRESS-NGINX
+#         apiVersion: v1
+#         kind: Secret
+#         type: Opaque
+#         metadata:
+#           annotations:
+#             managed-by: argocd.argoproj.io
+#           labels:
+#             argocd.argoproj.io/secret-type: repository
+#           name: repo-ingress-nginx
+#           namespace: $namespace
+#         stringData:
+#           name: ingress-nginx
+#           type: helm
+#           # project is optional
+#           project: aks-infrastructure
+#           url: https://kubernetes.github.io/ingress-nginx
+# ---
+#         # BITNAMI
+#         apiVersion: v1
+#         kind: Secret
+#         type: Opaque
+#         metadata:
+#           annotations:
+#             managed-by: argocd.argoproj.io
+#           labels:
+#             argocd.argoproj.io/secret-type: repository
+#           name: repo-bitnami
+#           namespace: $namespace
+#         stringData:
+#           name: bitnami
+#           type: helm
+#           # project is optional
+#           project: aks-infrastructure
+#           url: https://charts.bitnami.com/bitnami
+# ---
+#         # EXTERNAL-SECRETS
+#         apiVersion: v1
+#         kind: Secret
+#         type: Opaque
+#         metadata:
+#           annotations:
+#             managed-by: argocd.argoproj.io
+#           labels:
+#             argocd.argoproj.io/secret-type: repository
+#           name: repo-external-secrets
+#           namespace: $namespace
+#         stringData:
+#           name: external-secrets
+#           type: helm
+#           # project is optional
+#           project: aks-infrastructure
+#           url: https://charts.external-secrets.io
+# ---
+#         # CLOUDNATIVEPG
+#         apiVersion: v1
+#         kind: Secret
+#         type: Opaque
+#         metadata:
+#           annotations:
+#             managed-by: argocd.argoproj.io
+#           labels:
+#             argocd.argoproj.io/secret-type: repository
+#           name: repo-cloudnative-pg
+#           namespace: $namespace
+#         stringData:
+#           name: CloudNativePG
+#           type: helm
+#           # project is optional
+#           project: aks-infrastructure
+#           url: https://cloudnative-pg.github.io/charts
+# ---
+#         # LOKI
+#         apiVersion: v1
+#         kind: Secret
+#         type: Opaque
+#         metadata:
+#           annotations:
+#             managed-by: argocd.argoproj.io
+#           labels:
+#             argocd.argoproj.io/secret-type: repository
+#           name: repo-loki
+#           namespace: $namespace
+#         stringData:
+#           name: loki
+#           type: helm
+#           # project is optional
+#           project: aks-infrastructure
+#           url: https://grafana.github.io/helm-charts
+# EOF
+# }
 
 
-install-third-party-helm-charts() {
+add-kube-prometheus-stack-app() {
     cat <<EOF | kubectl apply -f -
-#         # EXTERNAL SECRETS
-#         apiVersion: v1
-#         kind: Namespace
-#         metadata:
-#           name: external-secrets
-#           annotations:
-#             linkerd.io/inject: enabled
-# ---
-#         apiVersion: argoproj.io/v1alpha1
-#         kind: Application
-#         metadata:
-#           name: external-secrets
-#           namespace: $namespace
-#         spec:
-#           project: aks-infrastructure
-#           destination:
-#             server: https://kubernetes.default.svc
-#             namespace: external-secrets
-#           source:
-#             repoURL: https://charts.external-secrets.io
-#             chart: external-secrets
-#             targetRevision: 0.7.2
-#             helm:
-#               parameters:
-#               - name: installCRDs
-#                 value: "true"
-#           # syncPolicy:
-#           #   automated: {}
----
-#         # CLOUDNATIVEPG OPERATOR
-#         apiVersion: v1
-#         kind: Namespace
-#         metadata:
-#           name: cnpg-system
-#           annotations:
-#             linkerd.io/inject: enabled
-# ---
-#         apiVersion: argoproj.io/v1alpha1
-#         kind: Application
-#         metadata:
-#           name: cloudnative-pg-operator
-#           namespace: $namespace
-#         spec:
-#           project: aks-infrastructure
-#           destination:
-#             server: https://kubernetes.default.svc
-#             namespace: cnpg-system
-#           source:
-#             repoURL: https://cloudnative-pg.github.io/charts
-#             chart: cloudnative-pg
-#             targetRevision: 0.17.0
-#           # syncPolicy:
-#           #   automated: {}
----
-        # INGRESS-NGINX
-        apiVersion: argoproj.io/v1alpha1
-        kind: Application
-        metadata:
-          name: ingress-nginx
-          namespace: $namespace
-        spec:
-          project: aks-infrastructure
-          destination:
-            server: https://kubernetes.default.svc
-            namespace: ingress-nginx
-          source:
-            repoURL: https://kubernetes.github.io/ingress-nginx
-            chart: ingress-nginx
-            targetRevision: 4.5.2
-            helm:
-              values: |-
-                controller:
-                  service:
-                    loadBalancerIP: $ingress_nginx_lb_ip
-                    annotations:
-                      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
-                      service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
-                  replicaCount: 2
-                  nodeSelector:
-                    kubernetes.io/os: linux
-                  admissionWebhooks:
-                    patch:
-                      nodeSelector:
-                        kubernetes.io/os: linux
-                defaultBackend:
-                  nodeSelector:
-                    kubernetes.io/os: linux
-                spec:
-                  template:
-                    metadata:
-                      annotations:
-                        linkerd.io/inject: enabled
-          syncPolicy:
-            # automated: {}
-            syncOptions:
-            - CreateNamespace=true
----
-        # KUBE-PROMETHEUS-STACK
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: monitoring
-          annotations:
-            linkerd.io/inject: enabled
----
         apiVersion: argoproj.io/v1alpha1
         kind: Application
         metadata:
           name: kube-prometheus-stack
-          namespace: $namespace
+          namespace: argocd
         spec:
           destination:
             namespace: monitoring
@@ -445,46 +340,8 @@ install-third-party-helm-charts() {
           # would be performed and syncing would fail with an error similar to "Too long: must have at most 262144 bytes".
           # Also, it will probably take two syncs to be in a completely healthy state.
           syncPolicy:
-            # automated: {}
             syncOptions:
             - ServerSideApply=true
----
-        # Linkerd
-        # I think we should continue using the linkerd cli to install linkerd. Installing via helm requires you to first
-        # create certificates. We can revisit this later.
----
-        # # LOKI
-        # apiVersion: argoproj.io/v1alpha1
-        # kind: Application
-        # metadata:
-        #   name: loki
-        #   namespace: $namespace
-        # spec:
-        #   project: aks-infrastructure
-        #   destination:
-        #     server: https://kubernetes.default.svc
-        #     namespace: monitoring
-        #   source:
-        #     repoURL: https://grafana.github.io/helm-charts
-        #     chart: loki-stack
-        #     targetRevision: 2.9.9
-        #     helm:
-        #       values: |-
-        #         loki:
-        #           config:
-        #             compactor:
-        #               compaction_interval: 10m
-        #               retention_delete_delay: 2h
-        #               retention_delete_worker_count: 150
-        #               retention_enabled: true
-        #             limits_config:
-        #               retention_period: 4320h
-        #           isDefault: false
-        #           persistence:
-        #             enabled: true
-        #             size: $loki_pvc_size
-        #   # syncPolicy:
-        #   #   automated: {}
 EOF
 }
 
