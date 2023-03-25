@@ -118,7 +118,7 @@ set-environment
 
 # change-argocd-admin-password
 
-connect-bootstrap-git-repo
+# connect-bootstrap-git-repo
 
 # create-argocd-aks-infrastructure-project
 

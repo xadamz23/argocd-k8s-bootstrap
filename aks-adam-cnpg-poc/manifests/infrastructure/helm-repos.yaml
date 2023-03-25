@@ -8,7 +8,7 @@ metadata:
   labels:
     argocd.argoproj.io/secret-type: repository
   name: repo-prometheus-community
-  namespace: $namespace
+  namespace: argocd
 stringData:
   name: prometheus-community
   type: helm
@@ -26,7 +26,7 @@ metadata:
   labels:
     argocd.argoproj.io/secret-type: repository
   name: repo-ingress-nginx
-  namespace: $namespace
+  namespace: argocd
 stringData:
   name: ingress-nginx
   type: helm
@@ -44,7 +44,7 @@ metadata:
   labels:
     argocd.argoproj.io/secret-type: repository
   name: repo-bitnami
-  namespace: $namespace
+  namespace: argocd
 stringData:
   name: bitnami
   type: helm
@@ -62,7 +62,7 @@ metadata:
   labels:
     argocd.argoproj.io/secret-type: repository
   name: repo-external-secrets
-  namespace: $namespace
+  namespace: argocd
 stringData:
   name: external-secrets
   type: helm
@@ -80,7 +80,7 @@ metadata:
   labels:
     argocd.argoproj.io/secret-type: repository
   name: repo-cloudnative-pg
-  namespace: $namespace
+  namespace: argocd
 stringData:
   name: CloudNativePG
   type: helm
@@ -98,7 +98,7 @@ metadata:
   labels:
     argocd.argoproj.io/secret-type: repository
   name: repo-loki
-  namespace: $namespace
+  namespace: argocd
 stringData:
   name: loki
   type: helm
