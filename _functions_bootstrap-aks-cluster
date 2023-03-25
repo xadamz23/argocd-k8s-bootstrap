@@ -257,34 +257,34 @@ EOF
 
 install-third-party-helm-charts() {
     cat <<EOF | kubectl apply -f -
-        # EXTERNAL SECRETS
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: external-secrets
-          annotations:
-            linkerd.io/inject: enabled
----
-        apiVersion: argoproj.io/v1alpha1
-        kind: Application
-        metadata:
-          name: external-secrets
-          namespace: $namespace
-        spec:
-          project: aks-infrastructure
-          destination:
-            server: https://kubernetes.default.svc
-            namespace: external-secrets
-          source:
-            repoURL: https://charts.external-secrets.io
-            chart: external-secrets
-            targetRevision: 0.7.2
-            helm:
-              parameters:
-              - name: installCRDs
-                value: "true"
-          # syncPolicy:
-          #   automated: {}
+#         # EXTERNAL SECRETS
+#         apiVersion: v1
+#         kind: Namespace
+#         metadata:
+#           name: external-secrets
+#           annotations:
+#             linkerd.io/inject: enabled
+# ---
+#         apiVersion: argoproj.io/v1alpha1
+#         kind: Application
+#         metadata:
+#           name: external-secrets
+#           namespace: $namespace
+#         spec:
+#           project: aks-infrastructure
+#           destination:
+#             server: https://kubernetes.default.svc
+#             namespace: external-secrets
+#           source:
+#             repoURL: https://charts.external-secrets.io
+#             chart: external-secrets
+#             targetRevision: 0.7.2
+#             helm:
+#               parameters:
+#               - name: installCRDs
+#                 value: "true"
+#           # syncPolicy:
+#           #   automated: {}
 ---
 #         # CLOUDNATIVEPG OPERATOR
 #         apiVersion: v1
@@ -453,38 +453,38 @@ install-third-party-helm-charts() {
         # I think we should continue using the linkerd cli to install linkerd. Installing via helm requires you to first
         # create certificates. We can revisit this later.
 ---
-        # LOKI
-        apiVersion: argoproj.io/v1alpha1
-        kind: Application
-        metadata:
-          name: loki
-          namespace: $namespace
-        spec:
-          project: aks-infrastructure
-          destination:
-            server: https://kubernetes.default.svc
-            namespace: monitoring
-          source:
-            repoURL: https://grafana.github.io/helm-charts
-            chart: loki-stack
-            targetRevision: 2.9.9
-            helm:
-              values: |-
-                loki:
-                  config:
-                    compactor:
-                      compaction_interval: 10m
-                      retention_delete_delay: 2h
-                      retention_delete_worker_count: 150
-                      retention_enabled: true
-                    limits_config:
-                      retention_period: 4320h
-                  isDefault: false
-                  persistence:
-                    enabled: true
-                    size: $loki_pvc_size
-          # syncPolicy:
-          #   automated: {}
+        # # LOKI
+        # apiVersion: argoproj.io/v1alpha1
+        # kind: Application
+        # metadata:
+        #   name: loki
+        #   namespace: $namespace
+        # spec:
+        #   project: aks-infrastructure
+        #   destination:
+        #     server: https://kubernetes.default.svc
+        #     namespace: monitoring
+        #   source:
+        #     repoURL: https://grafana.github.io/helm-charts
+        #     chart: loki-stack
+        #     targetRevision: 2.9.9
+        #     helm:
+        #       values: |-
+        #         loki:
+        #           config:
+        #             compactor:
+        #               compaction_interval: 10m
+        #               retention_delete_delay: 2h
+        #               retention_delete_worker_count: 150
+        #               retention_enabled: true
+        #             limits_config:
+        #               retention_period: 4320h
+        #           isDefault: false
+        #           persistence:
+        #             enabled: true
+        #             size: $loki_pvc_size
+        #   # syncPolicy:
+        #   #   automated: {}
 EOF
 }
 

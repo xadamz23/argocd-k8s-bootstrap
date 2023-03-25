@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+spec:
+  project: aks-infrastructure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki-stack
+    targetRevision: 2.9.9
+    helm:
+      values: |-
+loki:
+  config:
+    compactor:
+      compaction_interval: 10m
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
+      retention_enabled: true
+    limits_config:
+      retention_period: 4320h
+  isDefault: false
+  persistence:
+    enabled: true
+    size: 100Gi
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    managedNamespaceMetadata:
+      annotations:
+        linkerd.io/inject: enabled
