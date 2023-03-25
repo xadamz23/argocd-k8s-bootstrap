@@ -14,19 +14,19 @@ spec:
     targetRevision: 2.9.9
     helm:
       values: |-
-loki:
-  config:
-    compactor:
-      compaction_interval: 10m
-      retention_delete_delay: 2h
-      retention_delete_worker_count: 150
-      retention_enabled: true
-    limits_config:
-      retention_period: 4320h
-  isDefault: false
-  persistence:
-    enabled: true
-    size: 100Gi
+        loki:
+          config:
+            compactor:
+              compaction_interval: 10m
+              retention_delete_delay: 2h
+              retention_delete_worker_count: 150
+              retention_enabled: true
+            limits_config:
+              retention_period: 4320h
+          isDefault: false
+          persistence:
+            enabled: true
+            size: 100Gi
   syncPolicy:
     syncOptions:
     - CreateNamespace=true
