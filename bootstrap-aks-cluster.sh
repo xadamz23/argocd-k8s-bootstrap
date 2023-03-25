@@ -114,13 +114,15 @@ argocd_fqdn="${aks_cluster}-argocd.cbreesi.com"
 #--------------------------------------------------------------------------------------------------
 set-environment
 
-# install-argocd      # THIS FUNCTION HAS A LINE THAT WILL NEED TO BE CHANGED
+install-argocd      # THIS FUNCTION HAS A LINE THAT WILL NEED TO BE CHANGED
 
-# change-argocd-admin-password
+change-argocd-admin-password
 
-# connect-bootstrap-git-repo
+connect-bootstrap-git-repo
 
-# create-argocd-aks-infrastructure-project
+create-argocd-aks-infrastructure-project
+
+create-infrastructure-root-app
 
 # add-third-party-helm-repos
 
@@ -138,6 +140,6 @@ set-environment
 
 # create-ingress-resources
 
-# output
+output
 
 cleanup
