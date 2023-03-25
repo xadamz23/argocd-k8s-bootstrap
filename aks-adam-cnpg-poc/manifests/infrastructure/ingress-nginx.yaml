@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+spec:
+  project: aks-infrastructure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.5.2
+    helm:
+      values: |-
+        controller:
+          service:
+            loadBalancerIP: 10.0.1.10
+            annotations:
+              service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+              service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
+          replicaCount: 2
+          nodeSelector:
+            kubernetes.io/os: linux
+          admissionWebhooks:
+            patch:
+              nodeSelector:
+        kubernetes.io/os: linux
+        defaultBackend:
+          nodeSelector:
+            kubernetes.io/os: linux
+        spec:
+          template:
+            metadata:
+              annotations:
+        linkerd.io/inject: enabled
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true

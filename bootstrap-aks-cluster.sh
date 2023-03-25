@@ -124,6 +124,10 @@ create-argocd-aks-infrastructure-project
 
 create-infrastructure-root-app
 
+## NOTE THAT NEED TO FIND A WAY TO UPDATE INGRESS-NGINX
+## INTERNAL LOAD BALANCER IP ADDRESS IN GIT BEFORE SYNC
+## OF INGRESS-NGINX
+
 # add-third-party-helm-repos
 
 # install-third-party-helm-charts
