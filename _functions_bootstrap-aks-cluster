@@ -286,30 +286,30 @@ install-third-party-helm-charts() {
           # syncPolicy:
           #   automated: {}
 ---
-        # CLOUDNATIVEPG OPERATOR
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: cnpg-system
-          annotations:
-            linkerd.io/inject: enabled
----
-        apiVersion: argoproj.io/v1alpha1
-        kind: Application
-        metadata:
-          name: cloudnative-pg-operator
-          namespace: $namespace
-        spec:
-          project: aks-infrastructure
-          destination:
-            server: https://kubernetes.default.svc
-            namespace: cnpg-system
-          source:
-            repoURL: https://cloudnative-pg.github.io/charts
-            chart: cloudnative-pg
-            targetRevision: 0.17.0
-          # syncPolicy:
-          #   automated: {}
+#         # CLOUDNATIVEPG OPERATOR
+#         apiVersion: v1
+#         kind: Namespace
+#         metadata:
+#           name: cnpg-system
+#           annotations:
+#             linkerd.io/inject: enabled
+# ---
+#         apiVersion: argoproj.io/v1alpha1
+#         kind: Application
+#         metadata:
+#           name: cloudnative-pg-operator
+#           namespace: $namespace
+#         spec:
+#           project: aks-infrastructure
+#           destination:
+#             server: https://kubernetes.default.svc
+#             namespace: cnpg-system
+#           source:
+#             repoURL: https://cloudnative-pg.github.io/charts
+#             chart: cloudnative-pg
+#             targetRevision: 0.17.0
+#           # syncPolicy:
+#           #   automated: {}
 ---
         # INGRESS-NGINX
         apiVersion: argoproj.io/v1alpha1
